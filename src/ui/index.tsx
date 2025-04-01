@@ -61,12 +61,12 @@ class App extends React.Component<AppProps> {
                 {/* Header can remain or be adjusted as needed */}
                 <div className="header" style={{ display: 'none' }}>
                     <div id="title">
-                        <img src={'static/playcanvas-logo.png'}/>
+                        <img src={'static/Gsplat_main.png'}/>
                         <div>{`MODEL VIEWER v${appVersion}`}</div>
                     </div>
                 </div>
                 <div id="panel-toggle">
-                    <img src={'static/playcanvas-logo.png'}/>
+                    <img src={'static/Gsplat_main.png'}/>
                 </div>
                 <LeftPanel observerData={this.state} setProperty={this._setStateProperty} />
             </Container>
