@@ -1,0 +1,8 @@
+{
+  "projects": {
+    "default": "gauss-mobile",
+    "staging": "gauss-mobile"
+  },
+  "targets": {},
+  "etags": {}
+}
