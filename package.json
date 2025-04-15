@@ -65,5 +65,8 @@
         "build:local": "cross-env ENGINE_PATH=../engine npm run build",
         "watch:local": "cross-env ENGINE_PATH=../engine npm run watch",
         "lint": "eslint src"
+    },
+    "dependencies": {
+        "firebase": "^11.6.0"
     }
 }

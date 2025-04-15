@@ -1,4 +1,4 @@
-@import '../node_modules/@playcanvas/pcui/dist/pcui-theme-grey.scss';
+@import '../node_modules/@playcanvas/pcui/dist/pcui-theme-grey.scss'; // Revert back to @import to fix build error
 
 html {
     height: 100%;
@@ -835,7 +835,7 @@ input {
 }
 
 .pcui-select-input:not(.pcui-disabled):not(.pcui-readonly) .pcui-select-input-list > *:hover, .pcui-select-input:not(.pcui-disabled):not(.pcui-readonly) .pcui-select-input-list > .pcui-select-input-label-highlighted {
-    background-color: $bcg-primary;
+    background-color: $bcg-primary; // Revert back to original variable reference
 }
 
 /* --- Login Page Styles --- */
@@ -843,74 +843,122 @@ input {
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100vh;
-    flex-direction: column;
-    background-color: var(--bg-color, #f4f4f4); /* Default light theme */
-    color: var(--text-color, #333);
+    min-height: 100vh; // Use min-height for flexibility
+    padding: 20px; // Add some padding
+    background-color: var(--bg-color, #f8f9fa);
+    color: var(--text-color, #212529);
     transition: background-color 0.3s, color 0.3s;
+    box-sizing: border-box; // Include padding in height calculation
 }
 
 .login-form {
     display: flex;
     flex-direction: column;
-    gap: 15px;
-    padding: 30px;
-    border: 1px solid var(--border-color, #ccc);
-    border-radius: 8px;
-    background-color: var(--form-bg-color, #fff);
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    min-width: 300px;
+    gap: 18px; // Slightly increased gap
+    padding: 35px 40px; // Increased padding
+    border: 1px solid var(--border-color, #dee2e6);
+    border-radius: 12px; // More rounded corners
+    background-color: var(--form-bg-color, #ffffff);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); // Softer shadow
+    width: 100%; // Take available width
+    max-width: 400px; // Limit max width
+    box-sizing: border-box;
 }
 
 .login-form h2 {
     text-align: center;
-    margin-bottom: 15px;
-    color: var(--header-color, #333);
+    margin: 0 0 20px 0; // Adjusted margin
+    color: var(--header-color, #343a40);
+    font-size: 1.75rem; // Larger heading
+    font-weight: 600; // Slightly bolder
 }
 
 .login-form div {
     display: flex;
     flex-direction: column;
+    gap: 6px; // Gap between label and input
 }
 
 .login-form label {
-    margin-bottom: 5px;
-    font-weight: bold;
+    font-weight: 500; // Medium weight
     width: auto; /* Override general label style */
-    color: var(--label-color, #555);
+    color: var(--label-color, #495057);
+    font-size: 0.9rem; // Slightly smaller label
 }
 
-.login-form input[type="text"],
+.login-form input[type="email"], // Target email specifically
 .login-form input[type="password"] {
-    padding: 10px;
-    border: 1px solid var(--border-color, #ccc);
-    border-radius: 4px;
-    font-size: 1rem; /* Use rem for better accessibility */
-    width: auto; /* Override general input style */
-    background-color: var(--input-bg-color, #fff);
-    color: var(--input-text-color, #333);
+    padding: 12px 15px; // More padding
+    border: 1px solid var(--border-color, #ced4da); // Use theme border color
+    border-radius: 6px; // Consistent rounding
+    font-size: 1rem;
+    width: 100%; /* Ensure full width within form */
+    box-sizing: border-box; // Include padding/border in width
+    background-color: var(--input-bg-color, #ffffff);
+    color: var(--input-text-color, #495057);
+    transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.login-form button {
-    padding: 12px;
-    background-color: var(--button-bg-color, #007bff);
+.login-form input[type="email"]:focus,
+.login-form input[type="password"]:focus {
+    outline: none;
+    border-color: var(--button-bg-color, #0d6efd); // Highlight with theme color
+    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.25); // Subtle focus ring (adjust color if needed)
+}
+
+
+// Style for the primary action button (Login/Register)
+.login-form button[type="submit"] {
+    padding: 12px 15px;
+    background-color: var(--button-bg-color, #0d6efd);
     color: var(--button-text-color, white);
     border: none;
-    border-radius: 4px;
+    border-radius: 6px;
     cursor: pointer;
     font-size: 1rem;
-    transition: background-color 0.3s;
+    font-weight: 500;
+    transition: background-color 0.3s, transform 0.1s;
     text-align: center; /* Override general button style */
+    margin-top: 10px; // Add some space above the button
 }
 
-.login-form button:hover {
-    background-color: var(--button-hover-bg-color, #0056b3);
+.login-form button[type="submit"]:hover {
+    background-color: var(--button-hover-bg-color, #0b5ed7);
 }
+
+.login-form button[type="submit"]:active {
+    transform: scale(0.98); // Slight press effect
+}
+
+// Style for the secondary toggle button (Need an account? / Already have an account?)
+.login-form .toggle-auth-mode {
+    background-color: transparent;
+    color: var(--link-color, #0d6efd);
+    border: none;
+    padding: 8px 0; // Minimal padding
+    cursor: pointer;
+    font-size: 0.9rem;
+    text-align: center;
+    margin-top: 5px; // Space between buttons
+    transition: color 0.3s;
+    width: auto; // Override general button style
+}
+
+.login-form .toggle-auth-mode:hover {
+    color: var(--link-hover-color, #0b5ed7);
+    text-decoration: underline;
+}
+
 
 .login-error {
-    color: var(--error-color, red);
+    color: var(--error-color, #dc3545);
+    background-color: rgba(220, 53, 69, 0.1); // Subtle background for error
+    border: 1px solid rgba(220, 53, 69, 0.2);
+    border-radius: 6px;
+    padding: 10px 15px;
     text-align: center;
     font-size: 0.9rem;
+    margin-top: 5px; // Ensure space if error appears
 }
 
 /* --- Dashboard Page Styles --- */

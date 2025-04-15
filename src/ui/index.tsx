@@ -1,8 +1,10 @@
 import { Observer } from '@playcanvas/observer';
 import { Container, Spinner } from '@playcanvas/pcui/react';
+import { onAuthStateChanged, User } from 'firebase/auth'; // Firebase Auth listener
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
 
+import { auth } from '../firebase-config'; // Firebase auth instance
 import { ObserverData } from '../types';
 import DashboardPage from './DashboardPage'; // Import the new Dashboard page
 import ErrorBox from './errors';
@@ -89,40 +91,62 @@ type ViewerReadyCallback = () => void;
 export default (observer: Observer, onViewerReady: ViewerReadyCallback) => { // Accept the callback
     const Root: React.FC = () => {
         const [route, setRoute] = useState(window.location.hash);
-        const [isLoggedIn, setIsLoggedIn] = useState(localStorage.getItem('isLoggedIn') === 'true');
+        const [currentUser, setCurrentUser] = useState<User | null>(null); // State for Firebase user
+        const [authLoading, setAuthLoading] = useState(true); // State to track initial auth check
 
+        // Listener for Firebase Auth state changes
+        useEffect(() => {
+            const unsubscribe = onAuthStateChanged(auth, (user) => {
+                console.log('Auth State Changed:', user ? `Logged in as ${user.email}` : 'Logged out');
+                setCurrentUser(user);
+                setAuthLoading(false); // Auth check complete
+
+                // Redirect based on auth state after initial check
+                if (!user && window.location.hash !== '#/login') {
+                    console.log('User logged out or not logged in, redirecting to #/login');
+                    window.location.hash = '#/login';
+                } else if (user && window.location.hash === '#/login') {
+                    console.log('User logged in, redirecting from #/login to #/dashboard');
+                    window.location.hash = '#/dashboard'; // Redirect logged-in users away from login page
+                }
+            });
+
+            // Cleanup subscription on unmount
+            return () => unsubscribe();
+        }, []); // Run only once on mount
+
+        // Listener for hash changes (controls view *after* login)
         useEffect(() => {
             const handleHashChange = () => {
+                console.log('Hash changed to:', window.location.hash);
                 setRoute(window.location.hash);
-                // Re-check login status on navigation potentially triggered by components
-                setIsLoggedIn(localStorage.getItem('isLoggedIn') === 'true');
             };
 
             window.addEventListener('hashchange', handleHashChange);
-            // Also handle manual reloads which trigger component logic
-            window.addEventListener('load', handleHashChange);
-
-
-            // Initial check
+            // Initial check for hash
             handleHashChange();
 
             return () => {
                 window.removeEventListener('hashchange', handleHashChange);
-                window.removeEventListener('load', handleHashChange);
             };
-        }, []);
+        }, []); // Run only once on mount
 
-        // Routing Logic
-        if (!isLoggedIn) {
-            // If not logged in, always show Login page, regardless of hash
-            // Set hash to #/login for consistency if it's not already set
-            if (window.location.hash !== '#/login') {
-                window.location.hash = '#/login';
-            }
+        // Show loading indicator while checking auth state
+        if (authLoading) {
+            // You might want a more sophisticated loading UI here
+            return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Loading Authentication...</div>;
+        }
+
+        // Routing Logic based on Firebase Auth state
+        if (!currentUser) {
+            // If not logged in (and auth check is complete), always show Login page
+            // The onAuthStateChanged listener handles redirecting to #/login
             return <LoginPage />;
         }
-        // Logged in
-        if (route === '#/dashboard' || route === '') { // Default to dashboard if logged in and no specific route
+
+        // User is logged in
+        if (route === '#/dashboard' || route === '' || route === '#/login') { // Default to dashboard if logged in
+            // Redirect from #/login explicitly if somehow landed there while logged in
             if (window.location.hash !== '#/dashboard') {
                 window.location.hash = '#/dashboard'; // Ensure hash matches state
             }
@@ -133,7 +157,9 @@ export default (observer: Observer, onViewerReady: ViewerReadyCallback) => { // 
             // Pass the onViewerReady callback to the App component
             return <App observer={observer} onReady={onViewerReady} />;
         }
+
         // Fallback for unknown hash when logged in, redirect to dashboard
+        console.warn(`Unknown route "${route}" while logged in, redirecting to #/dashboard`);
         window.location.hash = '#/dashboard';
         return <DashboardPage />; // Render dashboard while hash updates
     };
