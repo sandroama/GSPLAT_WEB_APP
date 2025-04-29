@@ -1,6 +1,6 @@
 import { signOut } from 'firebase/auth';
-import { collection, query, where, onSnapshot, orderBy, doc, deleteDoc, addDoc, serverTimestamp } from 'firebase/firestore'; // Added addDoc, serverTimestamp
-import { ref, deleteObject, uploadBytes, getDownloadURL } from 'firebase/storage'; // Added uploadBytes, getDownloadURL
+import { collection, query, where, onSnapshot, orderBy, doc, deleteDoc, setDoc, serverTimestamp } from 'firebase/firestore'; // Changed addDoc to setDoc
+import { ref, deleteObject, uploadBytes, getDownloadURL } from 'firebase/storage';
 import React, { useState, useEffect, useMemo } from 'react';
 
 import { auth, db, storage } from '../firebase-config'; // Import Firebase services
@@ -45,9 +45,11 @@ const DashboardPage: React.FC = () => {
         }
 
         setIsLoading(true);
+        // Query the 'models' subcollection within the specific user's document
+        const modelsCollectionRef = collection(db, 'users', currentUser.uid, 'models');
         const q = query(
-            collection(db, 'plyFiles'),
-            where('userId', '==', currentUser.uid),
+            modelsCollectionRef,
+            // No need for where('userId', ...) as we are already in the user's subcollection
             orderBy('uploadedAt', 'desc') // Order by upload time, newest first
         );
 
@@ -82,16 +84,15 @@ const DashboardPage: React.FC = () => {
 
         console.log(`Attempting to remove model: ${modelToRemove.fileName} (ID: ${modelToRemove.id})`);
 
-        // 1. Delete Firestore document
+        // 1. Delete Firestore document from the user's 'models' subcollection
         try {
-            const docRef = doc(db, 'plyFiles', modelToRemove.id);
+            const docRef = doc(db, 'users', auth.currentUser.uid, 'models', modelToRemove.id);
             await deleteDoc(docRef);
-            console.log(`Firestore document ${modelToRemove.id} deleted.`);
+            console.log(`Firestore document users/${auth.currentUser.uid}/models/${modelToRemove.id} deleted.`);
 
-            // 2. Delete file from Storage (construct path based on known structure)
-            // Assuming storagePath was saved correctly during upload
-            // If storagePath isn't in FirestoreModel, you'll need to add it or reconstruct it
-            const storagePath = `users/${auth.currentUser.uid}/uploads/${modelToRemove.fileName}`; // Reconstruct path
+            // 2. Delete file from Storage using the new path structure
+            // We use the model ID as the folder name now
+            const storagePath = `users/${auth.currentUser.uid}/models/${modelToRemove.id}/${modelToRemove.fileName}`;
             const storageRef = ref(storage, storagePath);
             await deleteObject(storageRef);
             console.log(`Storage file ${storagePath} deleted.`);
@@ -131,7 +132,12 @@ const DashboardPage: React.FC = () => {
 
         if (file && currentUser && file.name.toLowerCase().endsWith('.ply')) {
             const filename = file.name; // Use original filename
-            const storagePath = `users/${currentUser.uid}/uploads/${filename}`;
+
+            // Generate a unique ID for the model document and storage folder
+            const newModelDocRef = doc(collection(db, 'users', currentUser.uid, 'models'));
+            const newModelId = newModelDocRef.id;
+
+            const storagePath = `users/${currentUser.uid}/models/${newModelId}/${filename}`;
             const storageRef = ref(storage, storagePath);
 
             console.log(`Uploading ${filename} via dashboard button to ${storagePath}...`);
@@ -143,11 +149,12 @@ const DashboardPage: React.FC = () => {
                 const downloadURL = await getDownloadURL(snapshot.ref);
                 console.log(`Successfully uploaded ${filename}. URL: ${downloadURL}`);
 
-                // Add metadata to Firestore
-                await addDoc(collection(db, 'plyFiles'), {
+                // Add metadata to Firestore using setDoc with the generated ID
+                await setDoc(newModelDocRef, { // Use setDoc with the pre-generated doc reference
                     userId: currentUser.uid,
                     fileName: filename,
-                    originalName: file.name,
+                    originalName: file.name, // Keep original name if needed
+                    type: 'model', // Add the type field
                     storagePath: storagePath,
                     downloadURL: downloadURL,
                     uploadedAt: serverTimestamp(),
@@ -164,7 +171,8 @@ const DashboardPage: React.FC = () => {
 
         } else if (file && !file.name.toLowerCase().endsWith('.ply')) {
             console.warn('User attempted to upload a non-.ply file via button:', file.name);
-            alert('Please select a .ply file.'); // Simple feedback for now
+            // alert('Please select a .ply file.'); // Replaced alert with console warning
+            console.warn('Upload failed: Please select a .ply file.'); // Provide feedback via console
         } else if (!currentUser) {
             console.error('Cannot upload: User not logged in.');
             // alert('You must be logged in to upload files.'); // Replaced alert with console log for better practice

@@ -1,4 +1,4 @@
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore'; // Import doc and setDoc, remove addDoc
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { path } from 'playcanvas';
 
@@ -147,40 +147,46 @@ const CreateDropHandler = (target: HTMLElement, dropHandler: DropHandlerFunc) =>
 
                         if (isPlyFile && currentUser) {
                             // Handle .ply upload for authenticated user
-                            const storagePath = `users/${currentUser.uid}/uploads/${filename}`;
+
+                            // Generate a unique ID for the model document and storage folder
+                            const newModelDocRef = doc(collection(db, 'users', currentUser.uid, 'models'));
+                            const newModelId = newModelDocRef.id;
+
+                            const storagePath = `users/${currentUser.uid}/models/${newModelId}/${filename}`;
                             const storageRef = ref(storage, storagePath);
 
                             console.log(`Uploading ${filename} to ${storagePath}...`);
                             uploadBytes(storageRef, entryFile)
-                                .then(snapshot => getDownloadURL(snapshot.ref))
-                                .then((downloadURL) => {
-                                    console.log(`Successfully uploaded ${filename}. URL: ${downloadURL}`);
-                                    // Add metadata to Firestore
-                                    addDoc(collection(db, 'plyFiles'), {
-                                        userId: currentUser.uid,
-                                        fileName: filename, // Use the extracted filename
-                                        originalName: entryFile.name, // Keep original file name too
-                                        storagePath: storagePath,
-                                        downloadURL: downloadURL,
-                                        uploadedAt: serverTimestamp(),
-                                        size: entryFile.size,
-                                        contentType: entryFile.type
-                                    }).then(() => {
-                                        console.log(`Firestore metadata added for ${filename}`);
-                                        resolve({
-                                            filename: filename,
-                                            firebaseUploaded: true,
-                                            firebaseInfo: { storagePath, downloadURL }
-                                        });
-                                    }).catch((firestoreError) => {
-                                        console.error(`Error adding Firestore metadata for ${filename}:`, firestoreError);
-                                        resolve({ filename: filename, firebaseUploaded: false, error: 'Firestore metadata error' }); // Treat as failure, pass to original handler? Or just log? For now, log and mark as not uploaded.
+                            .then(snapshot => getDownloadURL(snapshot.ref))
+                            .then((downloadURL) => {
+                                console.log(`Successfully uploaded ${filename}. URL: ${downloadURL}`);
+                                // Add metadata to Firestore using setDoc
+                                setDoc(newModelDocRef, { // Use setDoc with the generated ref
+                                    userId: currentUser.uid,
+                                    fileName: filename, // Use the extracted filename
+                                    originalName: entryFile.name, // Keep original file name too
+                                    type: 'model', // Add the type field
+                                    storagePath: storagePath,
+                                    downloadURL: downloadURL,
+                                    uploadedAt: serverTimestamp(),
+                                    size: entryFile.size,
+                                    contentType: entryFile.type
+                                }).then(() => {
+                                    console.log(`Firestore metadata added for ${filename}`);
+                                    resolve({
+                                        filename: filename,
+                                        firebaseUploaded: true,
+                                        firebaseInfo: { storagePath, downloadURL }
                                     });
-                                })
-                                .catch((uploadError) => {
-                                    console.error(`Error uploading ${filename}:`, uploadError);
-                                    resolve({ filename: filename, firebaseUploaded: false, error: 'Upload error' }); // Failed upload, pass to original handler
+                                }).catch((firestoreError) => {
+                                    console.error(`Error adding Firestore metadata for ${filename}:`, firestoreError);
+                                    resolve({ filename: filename, firebaseUploaded: false, error: 'Firestore metadata error' }); // Treat as failure, pass to original handler? Or just log? For now, log and mark as not uploaded.
                                 });
+                            })
+                            .catch((uploadError) => {
+                                console.error(`Error uploading ${filename}:`, uploadError);
+                                resolve({ filename: filename, firebaseUploaded: false, error: 'Upload error' }); // Failed upload, pass to original handler
+                            });
                         } else {
                             // Not a .ply file or user not logged in, prepare for original handler
                             const objectURL = URL.createObjectURL(entryFile);
