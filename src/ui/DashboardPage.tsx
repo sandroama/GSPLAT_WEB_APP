@@ -1,56 +1,76 @@
 import { signOut } from 'firebase/auth';
-import { collection, query, where, onSnapshot, orderBy, doc, deleteDoc, setDoc, serverTimestamp } from 'firebase/firestore'; // Changed addDoc to setDoc
+import { collection, query, where, onSnapshot, orderBy, doc, deleteDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, deleteObject, uploadBytes, getDownloadURL } from 'firebase/storage';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { 
+    Search, 
+    LogOut, 
+    Upload, 
+    X, 
+    Sun, 
+    Moon, 
+    HelpCircle, 
+    Trash2, 
+    Eye, 
+    Palette, 
+    ChevronDown, 
+    AlertCircle,
+    FileUp,
+    Grid,
+    List,
+    Settings,
+    User
+} from "lucide-react";
 
-import { auth, db, storage } from '../firebase-config'; // Import Firebase services
+import { auth, db, storage } from '../firebase-config';
 
-// Updated interface to match Firestore data structure
 interface FirestoreModel {
-    id: string; // Firestore document ID
+    id: string;
     fileName: string;
     downloadURL: string;
-    uploadedAt?: any; // Keep timestamp if needed for sorting
-    // Add other fields if necessary (e.g., originalName, size)
+    uploadedAt?: any;
+    size?: number;
 }
 
-type Theme = 'light' | 'dark';
+type Theme = "light" | "dark" | "blue" | "purple" | "green";
+type ViewMode = "grid" | "list";
 
 const DashboardPage: React.FC = () => {
-    // Corrected state initialization
-    const [models, setModels] = useState<FirestoreModel[]>([]); // Use FirestoreModel
+    const [models, setModels] = useState<FirestoreModel[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [currentTheme, setCurrentTheme] = useState<Theme>(() => {
-        // Initialize theme from localStorage or default to 'light'
         return (localStorage.getItem('userTheme') as Theme) || 'light';
     });
+    const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
+    const [isUploading, setIsUploading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [showWelcomePopup, setShowWelcomePopup] = useState(true);
+    const [showHowToUseModal, setShowHowToUseModal] = useState(false);
+    const [showThemeSelector, setShowThemeSelector] = useState(false);
+    const [viewMode, setViewMode] = useState<ViewMode>(() => {
+        return (localStorage.getItem('viewMode') as ViewMode) || 'grid';
+    });
+    const [showUserMenu, setShowUserMenu] = useState(false);
 
-    // Apply theme class to body
     useEffect(() => {
         document.body.classList.remove('theme-light', 'theme-dark');
         document.body.classList.add(`theme-${currentTheme}`);
         localStorage.setItem('userTheme', currentTheme);
     }, [currentTheme]);
 
-    // Fetch models from Firestore for the current user
     useEffect(() => {
         const currentUser = auth.currentUser;
         if (!currentUser) {
-            // This should ideally not happen if routing in index.tsx is correct,
-            // but handle it defensively.
-            console.log('No user found in Dashboard, redirecting to login.');
             window.location.hash = '#/login';
             return;
         }
 
         setIsLoading(true);
-        // Query the 'models' subcollection within the specific user's document
         const modelsCollectionRef = collection(db, 'users', currentUser.uid, 'models');
         const q = query(
             modelsCollectionRef,
-            // No need for where('userId', ...) as we are already in the user's subcollection
-            orderBy('uploadedAt', 'desc') // Order by upload time, newest first
+            orderBy('uploadedAt', 'desc')
         );
 
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -60,253 +80,238 @@ const DashboardPage: React.FC = () => {
             });
             setModels(fetchedModels);
             setIsLoading(false);
-            console.log('Fetched models from Firestore:', fetchedModels);
         }, (error) => {
-            console.error('Error fetching models from Firestore:', error);
+            console.error('Error fetching models:', error);
             setIsLoading(false);
-            // TODO: Show error message to user
         });
 
-        // Cleanup listener on unmount
         return () => unsubscribe();
-    }, []); // Run only on mount (or when auth.currentUser changes if needed, but index.tsx handles login state)
-
+    }, []);
 
     const handleModelSelect = (model: FirestoreModel) => {
-        // Use downloadURL from Firestore data
         localStorage.setItem('currentModelUrl', model.downloadURL);
         localStorage.setItem('currentModelName', model.fileName);
         window.location.hash = '#/viewer';
     };
 
     const handleRemoveModel = async (modelToRemove: FirestoreModel) => {
-        if (!auth.currentUser) return; // Should not happen, but check anyway
+        if (!auth.currentUser) return;
 
-        console.log(`Attempting to remove model: ${modelToRemove.fileName} (ID: ${modelToRemove.id})`);
-
-        // 1. Delete Firestore document from the user's 'models' subcollection
         try {
             const docRef = doc(db, 'users', auth.currentUser.uid, 'models', modelToRemove.id);
             await deleteDoc(docRef);
-            console.log(`Firestore document users/${auth.currentUser.uid}/models/${modelToRemove.id} deleted.`);
 
-            // 2. Delete file from Storage using the new path structure
-            // We use the model ID as the folder name now
             const storagePath = `users/${auth.currentUser.uid}/models/${modelToRemove.id}/${modelToRemove.fileName}`;
             const storageRef = ref(storage, storagePath);
             await deleteObject(storageRef);
-            console.log(`Storage file ${storagePath} deleted.`);
 
-            // State update will happen automatically via the onSnapshot listener
-
-            // Clear localStorage if it was the current model
             if (localStorage.getItem('currentModelName') === modelToRemove.fileName) {
                 localStorage.removeItem('currentModelUrl');
                 localStorage.removeItem('currentModelName');
             }
-
         } catch (error) {
-            console.error(`Error removing model ${modelToRemove.fileName}:`, error);
-            // TODO: Show error to user
+            console.error(`Error removing model:`, error);
         }
     };
 
     const handleLogout = async () => {
         try {
             await signOut(auth);
-            // No need to manually clear localStorage items related to models here,
-            // as the auth state change listener in index.tsx will redirect to login.
-            // Clear theme preference if desired, or leave it.
-            // localStorage.removeItem('userTheme');
-            console.log('User signed out successfully.');
-            // Redirect is handled by onAuthStateChanged in index.tsx
         } catch (error) {
             console.error('Error signing out:', error);
         }
     };
 
-    // Handler for the dashboard file input upload
     const handleDashboardUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         const currentUser = auth.currentUser;
 
         if (file && currentUser && file.name.toLowerCase().endsWith('.ply')) {
-            const filename = file.name; // Use original filename
-
-            // Generate a unique ID for the model document and storage folder
+            setIsUploading(true);
+            const filename = file.name;
             const newModelDocRef = doc(collection(db, 'users', currentUser.uid, 'models'));
             const newModelId = newModelDocRef.id;
-
             const storagePath = `users/${currentUser.uid}/models/${newModelId}/${filename}`;
             const storageRef = ref(storage, storagePath);
 
-            console.log(`Uploading ${filename} via dashboard button to ${storagePath}...`);
-            // TODO: Add UI feedback for upload progress/completion/error
-
             try {
-                // Upload file
                 const snapshot = await uploadBytes(storageRef, file);
                 const downloadURL = await getDownloadURL(snapshot.ref);
-                console.log(`Successfully uploaded ${filename}. URL: ${downloadURL}`);
 
-                // Add metadata to Firestore using setDoc with the generated ID
-                await setDoc(newModelDocRef, { // Use setDoc with the pre-generated doc reference
+                await setDoc(newModelDocRef, {
                     userId: currentUser.uid,
                     fileName: filename,
-                    originalName: file.name, // Keep original name if needed
-                    type: 'model', // Add the type field
+                    originalName: file.name,
+                    type: 'model',
                     storagePath: storagePath,
                     downloadURL: downloadURL,
                     uploadedAt: serverTimestamp(),
                     size: file.size,
                     contentType: file.type
                 });
-                console.log(`Firestore metadata added for ${filename}`);
-                // No need to update state manually, onSnapshot listener will handle it.
-
             } catch (error) {
-                console.error(`Error uploading ${filename} via dashboard:`, error);
-                // TODO: Show error message to user in the UI
+                console.error(`Error uploading file:`, error);
+            } finally {
+                setIsUploading(false);
+                if (event.target) {
+                    event.target.value = '';
+                }
             }
-
-        } else if (file && !file.name.toLowerCase().endsWith('.ply')) {
-            console.warn('User attempted to upload a non-.ply file via button:', file.name);
-            // alert('Please select a .ply file.'); // Replaced alert with console warning
-            console.warn('Upload failed: Please select a .ply file.'); // Provide feedback via console
-        } else if (!currentUser) {
-            console.error('Cannot upload: User not logged in.');
-            // alert('You must be logged in to upload files.'); // Replaced alert with console log for better practice
-            console.error('Upload failed: User must be logged in.');
-        }
-
-        // Reset file input value so the same file can be selected again if needed
-        if (event.target) {
-            event.target.value = ''; // Safer way to reset
         }
     };
-
 
     const toggleTheme = () => {
         setCurrentTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
     };
 
-    // Filter models based on search query (use fileName now)
-    const filteredModels = useMemo(() => {
-        if (!searchQuery) {
-            return models;
+    const toggleViewMode = () => {
+        const newMode = viewMode === 'grid' ? 'list' : 'grid';
+        setViewMode(newMode);
+        localStorage.setItem('viewMode', newMode);
+    };
+
+    const formatFileSize = (bytes?: number): string => {
+        if (bytes === undefined) return "Unknown size";
+        const units = ["B", "KB", "MB", "GB"];
+        let size = bytes;
+        let unitIndex = 0;
+        while (size >= 1024 && unitIndex < units.length - 1) {
+            size /= 1024;
+            unitIndex++;
         }
-        return models.filter(model => model.fileName.toLowerCase().includes(searchQuery.toLowerCase()));
+        return `${size.toFixed(1)} ${units[unitIndex]}`;
+    };
+
+    const filteredModels = useMemo(() => {
+        if (!searchQuery) return models;
+        return models.filter(model => 
+            model.fileName.toLowerCase().includes(searchQuery.toLowerCase())
+        );
     }, [models, searchQuery]);
 
-
     if (isLoading) {
-        // TODO: Replace with a nicer loading spinner component
-        return <div className="loading-indicator">Loading...</div>;
+        return (
+            <div className="loading-container">
+                <div className="loading-spinner"></div>
+                <span>Loading your models...</span>
+            </div>
+        );
     }
 
     return (
         <div className="dashboard-page">
-            {/* NEW: Intro Section */}
-            <section className="intro">
-                <h2>Welcome to GSPLAT Web Viewer</h2>
-                <p>
-                    This tool allows you to upload, manage, and view 3D models created using{' '}
-                    <strong>Gaussian Splatting</strong> (.ply format). Gaussian Splatting is a
-                    modern rendering technique that represents scenes with millions of 3D Gaussians,
-                    enabling high-quality, real-time rendering of complex captures.
-                </p>
-                <p>
-                    Upload your scans, view them instantly in your browser, and manage your model library.
-                </p>
-            </section>
-
-            {/* NEW: Get Started Section */}
-            <section className="get-started">
-                <h3>Get Started</h3>
-                <div className="get-started-content">
-                    <div className="upload-instructions">
-                        <h4>Uploading Your Scans</h4>
-                        <p>
-                            Use the "Upload New Model" button below to add your <code>.ply</code> files.
-                        </p>
-                        <p>
-                            <strong>📱 Mobile Uploads:</strong> You can easily upload scans captured on your phone!
-                            Simply navigate to this page on your mobile browser, log in, and use the upload button
-                            to select the <code>.ply</code> file directly from your phone's storage or camera roll.
-                        </p>
-                    </div>
-                    {/* Optional: Add sign-in info if needed, though routing handles it */}
-                    {/* <div className="account-info">
-                        <h4>Account</h4>
-                        <p>You are currently logged in. Use the logout button in the header to sign out.</p>
-                    </div> */}
-                </div>
-            </section>
-
             <header className="dashboard-header">
-                <h1>Model Dashboard</h1>
-                <div className="header-actions">
-                    <button onClick={toggleTheme} className="theme-button icon-button" title={`Switch to ${currentTheme === 'light' ? 'Dark' : 'Light'} Theme`}>
-                        {currentTheme === 'light' ? '🌙' : '☀️'} {/* Simple icons */}
+                <div className="header-left">
+                    <h1>My Models</h1>
+                    <div className="search-container">
+                        <Search size={20} />
+                        <input
+                            type="text"
+                            placeholder="Search models..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="search-input"
+                        />
+                    </div>
+                </div>
+                
+                <div className="header-right">
+                    <button 
+                        className="view-toggle-btn"
+                        onClick={toggleViewMode}
+                        title={`Switch to ${viewMode === 'grid' ? 'list' : 'grid'} view`}
+                    >
+                        {viewMode === 'grid' ? <List size={20} /> : <Grid size={20} />}
                     </button>
-                    <button onClick={handleLogout} className="logout-button" title="Logout">Logout</button>
+                    
+                    <button 
+                        className="theme-toggle-btn"
+                        onClick={toggleTheme}
+                        title={`Switch to ${currentTheme === 'light' ? 'dark' : 'light'} theme`}
+                    >
+                        {currentTheme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+                    </button>
+
+                    <div className="user-menu-container">
+                        <button 
+                            className="user-menu-btn"
+                            onClick={() => setShowUserMenu(!showUserMenu)}
+                        >
+                            <User size={20} />
+                        </button>
+                        {showUserMenu && (
+                            <div className="user-menu">
+                                <button onClick={handleLogout} className="menu-item">
+                                    <LogOut size={18} />
+                                    <span>Sign Out</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </header>
 
-            <section className="dashboard-section upload-section">
-                <h3>Upload New Model</h3>
-                <label htmlFor="dashboard-upload-input" className="upload-button">
-                    Choose .ply File
-                </label>
-                <input
-                    id="dashboard-upload-input"
-                    type="file"
-                    accept=".ply"
-                    onChange={handleDashboardUpload}
-                    style={{ display: 'none' }} // Hide default input
-                />
-                {/* TODO: Add visual feedback for selected file name */}
-            </section>
-
-            <section className="dashboard-section models-section">
-                <div className="models-header">
-                    <h3>Uploaded Models</h3>
+            <main className="dashboard-main">
+                <div className="upload-section">
                     <input
-                        className="search-input"
-                        type="search"
-                        placeholder='Search models...'
-                        value={searchQuery}
-                        onChange={e => setSearchQuery(e.target.value)}
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleDashboardUpload}
+                        accept=".ply"
+                        className="hidden"
                     />
+                    <button 
+                        className="upload-btn"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading}
+                    >
+                        <FileUp size={20} />
+                        <span>{isUploading ? 'Uploading...' : 'Upload Model'}</span>
+                    </button>
                 </div>
+
                 {filteredModels.length === 0 ? (
-                    <p className='no-models-message'>
-                        {searchQuery ? 'No models match your search.' : 'No models uploaded yet.'}
-                    </p>
+                    <div className="empty-state">
+                        <FileUp size={48} />
+                        <h2>No models found</h2>
+                        <p>Upload your first .ply model to get started</p>
+                    </div>
                 ) : (
-                    <div className='model-grid'> {/* Changed from ul to div for grid layout */}
-                        {filteredModels.map(model => (
-                            <div key={model.id} className='model-card'>
-                                <div className='model-card-content'>
-                                    <span className='model-name'>
-                                        {model.fileName}
-                                    </span>
-                                    {/* Add more details like upload date if available */}
-                                    {/* <span className='model-date'>{model.uploadedAt ? new Date(model.uploadedAt.seconds * 1000).toLocaleDateString() : 'N/A'}</span> */}
+                    <div className={`models-container ${viewMode}`}>
+                        {filteredModels.map((model) => (
+                            <div key={model.id} className="model-card">
+                                <div className="model-preview">
+                                    <img 
+                                        src="static/Gsplat_main.png" 
+                                        alt={model.fileName}
+                                        className="preview-image"
+                                    />
                                 </div>
-                                <div className='model-card-actions'>
-                                    <button onClick={() => handleModelSelect(model)} className='action-button view-button' title="View Model">
-                                        👁️ {/* View icon */}
+                                <div className="model-info">
+                                    <h3 className="model-name">{model.fileName}</h3>
+                                    <p className="model-size">{formatFileSize(model.size)}</p>
+                                </div>
+                                <div className="model-actions">
+                                    <button 
+                                        className="action-btn view-btn"
+                                        onClick={() => handleModelSelect(model)}
+                                        title="View Model"
+                                    >
+                                        <Eye size={18} />
                                     </button>
-                                    <button onClick={() => handleRemoveModel(model)} className='action-button remove-button' title="Remove Model">
-                                        🗑️ {/* Remove icon */}
+                                    <button 
+                                        className="action-btn delete-btn"
+                                        onClick={() => handleRemoveModel(model)}
+                                        title="Delete Model"
+                                    >
+                                        <Trash2 size={18} />
                                     </button>
                                 </div>
                             </div>
                         ))}
                     </div>
                 )}
-            </section>
+            </main>
         </div>
     );
 };

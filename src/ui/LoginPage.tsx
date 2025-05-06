@@ -4,40 +4,34 @@ import {
     AuthError
 } from 'firebase/auth';
 import React, { useState, useEffect } from 'react';
+import { Eye, EyeOff, LogIn, UserPlus, Sparkles, Cloud, Smartphone } from "lucide-react";
 
-import { auth } from '../firebase-config'; // Import Firebase auth instance
+import { auth } from '../firebase-config';
 
 const LoginPage: React.FC = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
-    const [isRegistering, setIsRegistering] = useState(false); // State to toggle forms
+    const [isRegistering, setIsRegistering] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
 
     const handleAuthAction = async (event: React.FormEvent) => {
         event.preventDefault();
-        setError(''); // Clear previous errors
+        setError('');
+        setIsLoading(true);
 
         try {
             if (isRegistering) {
-                // Register user
                 await createUserWithEmailAndPassword(auth, email, password);
-                console.log('Registration successful!');
-                // Optionally log the user in automatically after registration
-                // Or redirect to login / show success message
-                setIsRegistering(false); // Switch back to login view after registration
-                setError('Registration successful! Please log in.'); // Inform user
+                setIsRegistering(false);
+                setError('Registration successful! Please log in.');
             } else {
-                // Login user
                 await signInWithEmailAndPassword(auth, email, password);
-                console.log('Login successful!');
-                // Auth state change will be handled elsewhere (e.g., in index.tsx)
-                // No need to manually set localStorage or redirect here
-                // window.location.hash = '#/dashboard'; // Let auth state listener handle routing
             }
         } catch (err) {
-            const authError = err as AuthError; // Type assertion for better error handling
+            const authError = err as AuthError;
             console.error('Authentication error:', authError);
-            // Provide more specific error messages
             switch (authError.code) {
                 case 'auth/invalid-email':
                     setError('Invalid email format.');
@@ -55,10 +49,11 @@ const LoginPage: React.FC = () => {
                 default:
                     setError('An error occurred. Please try again.');
             }
+        } finally {
+            setIsLoading(false);
         }
     };
 
-    // Apply theme on initial load
     useEffect(() => {
         const theme = (localStorage.getItem('userTheme') as 'light' | 'dark') || 'light';
         document.body.classList.remove('theme-light', 'theme-dark');
@@ -67,43 +62,123 @@ const LoginPage: React.FC = () => {
 
     return (
         <div className="login-page">
-            <form onSubmit={handleAuthAction} className="login-form">
-                <h2>{isRegistering ? 'Register' : 'Login'}</h2>
-                <div>
-                    <label htmlFor="email">Email:</label>
-                    <input
-                        type="email" // Changed type to email
-                        id="email"
-                        value={email}
-                        onChange={e => setEmail(e.target.value)}
-                        required
-                        autoComplete="email" // Updated autocomplete
-                    />
+            <div className="auth-container">
+                <div className="auth-brand">
+                    <div className="brand-banner">
+                        <img src="static/Gsplat_main.png" alt="GSPLAT Banner" className="fade-in" />
+                    </div>
+                    <h1 className="brand-title slide-in">GSPLAT</h1>
+                    <p className="brand-description slide-in-delayed">
+                        Experience 3D Gaussian Splatting in your browser. Upload, view, and share your models with ease.
+                    </p>
+                    <div className="brand-features">
+                        <div className="feature fade-in">
+                            <div className="feature-icon">
+                                <Sparkles size={24} />
+                            </div>
+                            <div className="feature-text">Real-time rendering</div>
+                        </div>
+                        <div className="feature fade-in-delayed">
+                            <div className="feature-icon">
+                                <Cloud size={24} />
+                            </div>
+                            <div className="feature-text">Cloud synchronization</div>
+                        </div>
+                        <div className="feature fade-in-delayed-2">
+                            <div className="feature-icon">
+                                <Smartphone size={24} />
+                            </div>
+                            <div className="feature-text">Mobile compatible</div>
+                        </div>
+                    </div>
                 </div>
-                <div>
-                    <label htmlFor="password">Password:</label>
-                    <input
-                        type="password"
-                        id="password"
-                        value={password}
-                        onChange={e => setPassword(e.target.value)}
-                        required
-                        autoComplete={isRegistering ? "new-password" : "current-password"} // Dynamic autocomplete
-                    />
+
+                <div className="auth-form-container">
+                    <form onSubmit={handleAuthAction} className="login-form">
+                        <h2 className="form-title">{isRegistering ? 'Create Account' : 'Welcome Back'}</h2>
+                        <p className="form-subtitle">
+                            {isRegistering
+                                ? "Register to upload and view Gaussian Splat models"
+                                : "Sign in to your account to access your models"}
+                        </p>
+
+                        <div className="form-group">
+                            <label htmlFor="email" className="form-label">Email Address</label>
+                            <input
+                                type="email"
+                                id="email"
+                                className="form-control"
+                                value={email}
+                                onChange={e => setEmail(e.target.value)}
+                                required
+                                autoComplete="email"
+                                placeholder="your.email@example.com"
+                            />
+                        </div>
+
+                        <div className="form-group">
+                            <label htmlFor="password" className="form-label">Password</label>
+                            <div className="password-input-container">
+                                <input
+                                    type={showPassword ? "text" : "password"}
+                                    id="password"
+                                    className="form-control"
+                                    value={password}
+                                    onChange={e => setPassword(e.target.value)}
+                                    required
+                                    autoComplete={isRegistering ? "new-password" : "current-password"}
+                                    placeholder={isRegistering ? "Create a strong password" : "Enter your password"}
+                                />
+                                <button
+                                    type="button"
+                                    className="password-toggle"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    aria-label={showPassword ? "Hide password" : "Show password"}
+                                >
+                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
+                            </div>
+                        </div>
+
+                        {error && (
+                            <div className={`auth-message ${error.includes("successful") ? "success" : "error"}`}>
+                                {error}
+                            </div>
+                        )}
+                        
+                        <button 
+                            type="submit" 
+                            className={`btn btn-primary ${isLoading ? 'loading' : ''}`}
+                            disabled={isLoading}
+                        >
+                            <span className="button-content">
+                                {isLoading ? (
+                                    <>
+                                        <span className="spinner"></span>
+                                        <span>{isRegistering ? 'Creating Account...' : 'Signing In...'}</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        {isRegistering ? <UserPlus size={18} /> : <LogIn size={18} />}
+                                        <span>{isRegistering ? 'Create Account' : 'Sign In'}</span>
+                                    </>
+                                )}
+                            </span>
+                        </button>
+                        
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setIsRegistering(!isRegistering);
+                                setError('');
+                            }}
+                            className="toggle-auth-mode"
+                        >
+                            {isRegistering ? 'Already have an account? Sign in' : 'Need an account? Create one now'}
+                        </button>
+                    </form>
                 </div>
-                {error && <p className="login-error">{error}</p>}
-                <button type="submit">{isRegistering ? 'Register' : 'Login'}</button>
-                <button
-                    type="button" // Important: prevent form submission
-                    onClick={() => {
-                        setIsRegistering(!isRegistering);
-                        setError(''); // Clear error when switching modes
-                    }}
-                    className='toggle-auth-mode' // Add class for styling if needed
-                >
-                    {isRegistering ? 'Already have an account? Login' : 'Need an account? Register'}
-                </button>
-            </form>
+            </div>
         </div>
     );
 };

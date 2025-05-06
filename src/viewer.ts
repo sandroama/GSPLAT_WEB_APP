@@ -843,6 +843,14 @@ class Viewer {
         const widthPixels = device.width;
         const heightPixels = device.height;
 
+        // Ensure dimensions are valid (non-zero)
+        if (widthPixels <= 0 || heightPixels <= 0) {
+            console.warn('Invalid canvas dimensions, skipping render target creation. Width:', widthPixels, 'Height:', heightPixels);
+            // Schedule another attempt after a short delay
+            setTimeout(() => this.rebuildRenderTargets(), 100);
+            return;
+        }
+
         const old = this.camera.camera.renderTarget;
         if (old && old.width === widthPixels && old.height === heightPixels) {
             return;
@@ -851,35 +859,49 @@ class Viewer {
         // out with the old
         this.destroyRenderTargets();
 
-        const createTexture = (width: number, height: number, format: number) => {
-            return new Texture(device, {
-                name: 'viewer-rt-texture',
-                width: width,
-                height: height,
-                format: format,
-                mipmaps: false,
-                minFilter: FILTER_NEAREST,
-                magFilter: FILTER_NEAREST,
-                addressU: ADDRESS_CLAMP_TO_EDGE,
-                addressV: ADDRESS_CLAMP_TO_EDGE
+        try {
+            const createTexture = (width: number, height: number, format: number) => {
+                // Additional size validation
+                if (width <= 0 || height <= 0) {
+                    throw new Error(`Cannot create texture with invalid dimensions: ${width}x${height}`);
+                }
+                
+                return new Texture(device, {
+                    name: 'viewer-rt-texture',
+                    width: width,
+                    height: height,
+                    format: format,
+                    mipmaps: false,
+                    minFilter: FILTER_NEAREST,
+                    magFilter: FILTER_NEAREST,
+                    addressU: ADDRESS_CLAMP_TO_EDGE,
+                    addressV: ADDRESS_CLAMP_TO_EDGE
+                });
+            };
+
+            // @ts-ignore
+            const maxSamples = device.maxSamples;
+
+            // in with the new
+            const colorBuffer = createTexture(widthPixels, heightPixels, PIXELFORMAT_RGBA8);
+            const depthBuffer = createTexture(widthPixels, heightPixels, PIXELFORMAT_DEPTH);
+            const renderTarget = new RenderTarget({
+                name: 'viewer-rt',
+                colorBuffer: colorBuffer,
+                depthBuffer: depthBuffer,
+                flipY: false,
+                samples: this.observer.get('camera.multisample') ? maxSamples : 1,
+                autoResolve: false
             });
-        };
-
-        // @ts-ignore
-        const maxSamples = device.maxSamples;
-
-        // in with the new
-        const colorBuffer = createTexture(widthPixels, heightPixels, PIXELFORMAT_RGBA8);
-        const depthBuffer = createTexture(widthPixels, heightPixels, PIXELFORMAT_DEPTH);
-        const renderTarget = new RenderTarget({
-            name: 'viewer-rt',
-            colorBuffer: colorBuffer,
-            depthBuffer: depthBuffer,
-            flipY: false,
-            samples: this.observer.get('camera.multisample') ? maxSamples : 1,
-            autoResolve: false
-        });
-        this.camera.camera.renderTarget = renderTarget;
+            this.camera.camera.renderTarget = renderTarget;
+            
+            // Force an immediate frame render
+            this.renderNextFrame();
+        } catch (error) {
+            console.error('Error rebuilding render targets:', error);
+            // Try again after a short delay
+            setTimeout(() => this.rebuildRenderTargets(), 500);
+        }
     }
 
     // reset the viewer, unloading resources
@@ -1155,11 +1177,36 @@ class Viewer {
 
     private loadPly(url: File) {
         return new Promise((resolve, reject) => {
-            const asset = new Asset(url.filename, 'gsplat', url);
-            asset.on('load', () => resolve(asset));
-            asset.on('error', (err: string) => reject(err));
-            this.app.assets.add(asset);
-            this.app.assets.load(asset);
+            try {
+                console.log('Loading PLY file:', url.filename, 'from URL:', url.url);
+                
+                const asset = new Asset(url.filename, 'gsplat', url);
+                
+                asset.on('load', () => {
+                    console.log('PLY file loaded successfully:', url.filename);
+                    resolve(asset);
+                });
+                
+                asset.on('error', (err: string) => {
+                    console.error('Error loading PLY file:', url.filename, err);
+                    reject(err || 'Failed to load PLY file');
+                });
+                
+                this.app.assets.add(asset);
+                this.app.assets.load(asset);
+                
+                // Add a timeout to detect stalled loading
+                const timeout = setTimeout(() => {
+                    console.error('PLY loading timeout:', url.filename);
+                    reject('Loading timed out. The file may be too large or in an unsupported format.');
+                }, 30000); // 30 second timeout
+                
+                asset.once('load', () => clearTimeout(timeout));
+                asset.once('error', () => clearTimeout(timeout));
+            } catch (err) {
+                console.error('Exception during PLY loading setup:', err);
+                reject(err instanceof Error ? err.message : 'Failed to setup PLY loading');
+            }
         });
     }
 
@@ -1185,6 +1232,8 @@ class Viewer {
             files = [files];
         }
 
+        console.log('loadFiles called with', files.length, 'files:', files.map(f => f.filename).join(', '));
+
         // check if any file is a model
         const hasModelFilename = files.reduce(
             (p, f) => p || this.isModelFilename(f.filename) || this.isGSplatFilename(f.filename),
@@ -1204,26 +1253,66 @@ class Viewer {
 
             // load asset files
             const promises = files.map((file) => {
-                return this.isModelFilename(file.filename) ?
-                    this.loadGltf(file, files) :
-                    this.isGSplatFilename(file.filename) ?
-                        this.loadPly(file) :
-                        null;
+                if (this.isModelFilename(file.filename)) {
+                    console.log('Loading GLTF model:', file.filename);
+                    return this.loadGltf(file, files);
+                } else if (this.isGSplatFilename(file.filename)) {
+                    console.log('Loading PLY model:', file.filename);
+                    return this.loadPly(file);
+                } else {
+                    console.log('Skipping unsupported file:', file.filename);
+                    return null;
+                }
             });
 
-            Promise.all(promises)
+            // Filter out null promises
+            const validPromises = promises.filter(p => p !== null);
+            
+            if (validPromises.length === 0) {
+                console.error('No valid model files found to load');
+                this.observer.set('ui.error', 'No valid model files found to load');
+                this.observer.set('ui.spinner', false);
+                return false;
+            }
+
+            Promise.all(validPromises.map(p => 
+                // Wrap each promise to handle individual failures
+                p.catch((err): Asset | null => {
+                    console.error('Error loading model file:', err);
+                    return null; // Return null for failed models so we can filter them out
+                })
+            ))
             .then((assets: Asset[]) => {
                 this.loadTimestamp = loadTimestamp;
+                
+                // Filter out null assets (from failures)
+                const validAssets = assets.filter(asset => asset !== null);
+                
+                if (validAssets.length === 0) {
+                    throw new Error('All models failed to load');
+                }
+
+                console.log('Successfully loaded', validAssets.length, 'of', validPromises.length, 'models');
 
                 // add assets to the scene
-                assets.forEach((asset) => {
-                    if (asset) {
-                        this.addToScene(asset);
+                validAssets.forEach((asset) => {
+                    try {
+                        if (asset) {
+                            this.addToScene(asset);
+                        }
+                    } catch (error) {
+                        console.error('Error adding asset to scene:', error);
+                        this.observer.set('ui.error', `Error adding model to scene: ${error}`);
                     }
                 });
 
                 // prepare scene post load
-                this.postSceneLoad();
+                try {
+                    this.postSceneLoad();
+                } catch (error) {
+                    console.error('Error in postSceneLoad:', error);
+                    this.observer.set('ui.error', `Error preparing scene: ${error}`);
+                }
 
                 // update scene urls
                 const urls = files.map(f => f.url);
@@ -1237,11 +1326,13 @@ class Viewer {
                 }
             })
             .catch((err) => {
-                console.log(err);
-                this.observer.set('ui.error', err?.toString() || err);
+                console.error('Error in model loading process:', err);
+                this.observer.set('ui.error', err?.toString() || 'Unknown error loading model');
             })
             .finally(() => {
                 this.observer.set('ui.spinner', false);
+                // Always force a render frame to update the UI
+                this.renderNextFrame();
             });
         } else {
             // load skybox
@@ -1609,9 +1700,13 @@ class Viewer {
     }
 
     clearCta() {
-        document.querySelector('#panel-left').classList.add('no-cta');
-        document.querySelector('#application-canvas').classList.add('no-cta');
-        document.querySelector('.load-button-panel').classList.add('hide');
+        const panelLeft = document.querySelector('#panel-left');
+        const appCanvas = document.querySelector('#application-canvas');
+        const loadPanel = document.querySelector('.load-button-panel');
+        
+        if (panelLeft) panelLeft.classList.add('no-cta');
+        if (appCanvas) appCanvas.classList.add('no-cta');
+        if (loadPanel) loadPanel.classList.add('hide');
     }
 
     // add a loaded asset to the scene
@@ -1836,9 +1931,17 @@ class Viewer {
     private onFrameRender() {
         if (this.canvasResize) {
             const { width, height } = this.getCanvasSize();
+            
+            // Ensure canvas has valid dimensions
+            if (width <= 0 || height <= 0) {
+                console.warn('Invalid canvas dimensions, skipping resize');
+                return;
+            }
+            
             const pixelScale = this.observer.get('camera.pixelScale');
-            const widthPixels = Math.floor((width * window.devicePixelRatio) / pixelScale);
-            const heightPixels = Math.floor((height * window.devicePixelRatio) / pixelScale);
+            const widthPixels = Math.max(1, Math.floor((width * window.devicePixelRatio) / pixelScale));
+            const heightPixels = Math.max(1, Math.floor((height * window.devicePixelRatio) / pixelScale));
+            
             this.app.graphicsDevice.setResolution(widthPixels, heightPixels);
             this.observer.set('runtime.viewportWidth', widthPixels);
             this.observer.set('runtime.viewportHeight', heightPixels);

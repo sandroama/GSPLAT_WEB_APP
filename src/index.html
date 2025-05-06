@@ -1,20 +1,21 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Model Viewer</title>
+    <title>GSPLAT Web Viewer</title>
     <meta charset="utf-8" />
     <base href="__BASE_HREF__" />
-    <meta name="description" content="Fast and lightweight glTF 2.0 and gaussian splatting PLY viewer powered by the PlayCanvas engine." />
-    <meta name="keywords" content="glTF, GLB, PLY, WebGL, WebGPU, PlayCanvas, Viewer, Gaussian Splatting" />
+    <meta name="description" content="Fast and lightweight gaussian splatting PLY viewer powered by the PlayCanvas engine." />
+    <meta name="keywords" content="PLY, WebGL, WebGPU, PlayCanvas, Viewer, Gaussian Splatting" />
     <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
     <link rel="icon" type="image/png" href="static/Gsplat_favicon.png" />
     <link rel="stylesheet" href="style.css" />
     <link rel="manifest" href="manifest.json" />
+    <link rel="stylesheet" href="fonts.css" />
 </head>
 
 <body>
     <a id='ar-link' rel='ar' download='asset.usdz'><img /></a>
     <div id='app'></div>
-    <script src="index.js"></script>
+    <script type="module" src="index.js"></script>
 </body>
 </html>

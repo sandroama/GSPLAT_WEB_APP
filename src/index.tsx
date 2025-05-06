@@ -8,12 +8,16 @@ import {
     version as engineVersion,
     revision as engineRevision
 } from 'playcanvas';
-import React from 'react'; // Need React for JSX potentially used by initializeUI
-import ReactDOM from 'react-dom'; // Need ReactDOM for initializeUI
+import React, { useState, useEffect } from 'react';
+import ReactDOM from 'react-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { onAuthStateChanged } from 'firebase/auth';
 
 import { initMaterials } from './material';
 import { ObserverData } from './types';
-import initializeUI from './ui'; // This now contains the routing logic
+import { auth } from './firebase-config';
+import LoginPage from './ui/LoginPage';
+import DashboardPage from './ui/DashboardPage';
 import Viewer from './viewer';
 import './style.scss';
 import { version as modelViewerVersion } from '../package.json';
@@ -206,207 +210,303 @@ const loadOptions = (observer: Observer, name: string, skyboxUrls: Map<string, s
     }
 };
 
+// Create and initialize the observer
+const observer = new Observer(observerData);
 
-// print out versions of dependent packages
-console.log(`Model Viewer v${modelViewerVersion} | PCUI v${pcuiVersion} (${pcuiRevision}) | PlayCanvas Engine v${engineVersion} (${engineRevision})`);
-
-const main = () => {
-    // initialize the apps state
-    const observer: Observer = new Observer(observerData);
-
-    // global url
-    const url = new URL(window.location.href);
-
-    initMaterials();
-
-    basisInitialize({
-        glueUrl: 'static/lib/basis/basis.wasm.js',
-        wasmUrl: 'static/lib/basis/basis.wasm.wasm',
-        fallbackUrl: 'static/lib/basis/basis.js',
-        lazyInit: true
-    });
-
-    WasmModule.setConfig('DracoDecoderModule', {
-        glueUrl: 'static/lib/draco/draco.wasm.js',
-        wasmUrl: 'static/lib/draco/draco.wasm.wasm',
-        fallbackUrl: 'static/lib/draco/draco.js'
-    });
-
-    const skyboxUrls = new Map(skyboxes.map(s => [s.label, `static/${s.url}`]));
-
-    // hide / show spinner when loading files
-    observer.on('ui.spinner:set', (value: boolean) => {
-        const spinner = document.getElementById('spinner');
-        if (value) {
-            spinner.classList.remove('pcui-hidden');
-        } else {
-            spinner.classList.add('pcui-hidden');
+// Initialize the viewer component
+const ViewerComponent: React.FC = () => {
+    const [isInitialized, setIsInitialized] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    
+    useEffect(() => {
+        const url = new URL(window.location.href);
+        const skyboxUrls = new Map(skyboxes.map(s => [s.label, `static/${s.url}`]));
+        
+        // Load options
+        if (!url.searchParams.has('default')) {
+            loadOptions(observer, 'uistate', skyboxUrls);
+            
+            observer.on('*:set', () => {
+                saveOptions(observer, 'uistate');
+            });
         }
-    });
-
-    if (!url.searchParams.has('default')) {
-        // handle options
-        loadOptions(observer, 'uistate', skyboxUrls);
-
-        observer.on('*:set', () => {
-            saveOptions(observer, 'uistate');
-        });
-    }
-
-    // Initialize the UI *after* the viewer is created and assigned to window
-    // initializeUI(observer); // Moved lower
-
-    // create the canvas - this might be created dynamically by React now,
-    // but we still need a reference if the Viewer expects an existing canvas ID.
-    // Let's assume the Viewer component within initializeUI handles canvas creation/reference.
-    // We might need to adjust how the Viewer gets the canvas reference later if needed.
-    // For now, let's assume the canvas with id 'application-canvas' will exist when Viewer needs it.
-    // const canvas = document.getElementById('application-canvas') as HTMLCanvasElement; // Potentially redundant if React manages the canvas
-
-    const absoluteUrl = (relative: string) => new URL(relative, document.baseURI).toString();
-
-    // Define the function to run when the viewer UI component is ready
-    const startViewerInitialization = () => {
-        // Now try to get the canvas rendered by the React UI
-        const canvas = document.getElementById('application-canvas') as HTMLCanvasElement;
-
-        if (!canvas) {
-            console.error('Canvas element \'application-canvas\' not found after UI initialization.');
-            const errorDiv = document.getElementById('app') || document.body;
-            errorDiv.innerHTML = '<div style=\'padding: 20px; color: red;\'>Fatal Error: Canvas element not found.</div>';
-            return; // Stop execution if canvas isn't found
-        }
-
-        // create the graphics device
-        createGraphicsDevice(canvas, {
-            deviceTypes: url.searchParams.has('webgpu') || observer.get('enableWebGPU') ? ['webgpu'] : [],
-            glslangUrl: absoluteUrl('static/lib/glslang/glslang.js'),
-            twgslUrl: absoluteUrl('static/lib/twgsl/twgsl.js'),
-            antialias: false,
-            depth: false,
-            stencil: false,
-            xrCompatible: true,
-            powerPreference: 'high-performance'
-        }).then(async (device) => { // Make async to handle potential awaits
-            observer.set('runtime.activeDeviceType', device.deviceType);
-
-            // create viewer instance
-            const viewer = new Viewer(canvas, device, observer, skyboxUrls);
-
-            // make viewer available globally
-            window.viewer = viewer;
-
-            // --- Model Loading Logic based on localStorage ---
-            const currentModelUrl = localStorage.getItem('currentModelUrl');
-            const currentModelName = localStorage.getItem('currentModelName') || 'model.ply'; // Default name
-
-            if (window.location.hash === '#/viewer' && currentModelUrl) {
-                console.log(`Loading model from localStorage: ${currentModelName} (${currentModelUrl})`);
-                try {
-                    // Ensure the viewer is ready before loading
-                    // In complex scenarios, might need a more robust check or event
-                    await viewer.loadFiles([{ url: currentModelUrl, filename: currentModelName }], true); // Reset scene when loading specific model
-                } catch (error) {
-                    console.error('Error loading model from localStorage:', error);
-                    observer.set('ui.error', `Failed to load model: ${error}`);
-                    // Optionally clear the stored URL if loading fails
-                    // localStorage.removeItem('currentModelUrl');
-                    // localStorage.removeItem('currentModelName');
-                    // window.location.hash = '#/dashboard'; // Redirect back?
+        
+        // Setup spinner
+        observer.on('ui.spinner:set', (value: boolean) => {
+            const spinner = document.getElementById('spinner');
+            if (spinner) {
+                if (value) {
+                    spinner.classList.remove('pcui-hidden');
+                } else {
+                    spinner.classList.add('pcui-hidden');
                 }
-            } else if (window.location.hash !== '#/login' && window.location.hash !== '#/dashboard') {
-                // If logged in but not on viewer route and no model specified,
-                // ensure we are on the dashboard. The routing in ui/index.tsx handles this,
-                // but this is a fallback check.
-                console.log('No model specified or not on viewer route, ensuring dashboard.');
             }
-            // --- End Model Loading Logic ---
-
-
-            // --- Start: PWA File Handling Logic ---
-            // Re-introduce files array specifically for PWA launch handling
-            const pwaFiles: { url: string, filename: string }[] = [];
-            const pwaPromises: Promise<any>[] = [];
-            if ('launchQueue' in window) {
-                window.launchQueue.setConsumer((launchParams: LaunchParams) => {
-                    for (const fileHandle of launchParams.files) {
-                        pwaPromises.push(
-                            fileHandle.getFile().then((file) => {
-                                pwaFiles.push({ url: URL.createObjectURL(file), filename: file.name });
-                            })
-                        );
-                    }
-                    // After processing files, potentially load them if not handled by localStorage logic
-                    Promise.all(pwaPromises).then(() => {
-                        if (pwaFiles.length > 0 && window.location.hash !== '#/viewer') {
-                            // Load PWA files only if not already loading a specific model via hash/localStorage
-                            console.log('Loading files from PWA launch handler:', pwaFiles);
-                            viewer.loadFiles(pwaFiles, true); // Reset scene for PWA launch
-                        }
-                    });
-                });
+        });
+        
+        // When component mounts, create canvas and initialize viewer
+        const canvasContainer = document.getElementById('viewer-container');
+        if (canvasContainer) {
+            // Create canvas wrapper first - ensure it exists and has proper size
+            let canvasWrapper = document.getElementById('canvas-wrapper') as HTMLDivElement;
+            if (!canvasWrapper) {
+                canvasWrapper = document.createElement('div');
+                canvasWrapper.id = 'canvas-wrapper';
+                canvasWrapper.style.width = '100%';
+                canvasWrapper.style.height = '100%';
+                canvasWrapper.style.position = 'relative';
+                canvasContainer.appendChild(canvasWrapper);
             }
-            // --- End: PWA File Handling Logic ---
 
-            // handle search params - Keep camera/debug params, remove model loading ones
-            for (const [key, value] of url.searchParams) {
-                switch (key) {
-                    // case 'load': // Removed
-                    // case 'assetUrl': { // Removed
-                    //     const url = decodeURIComponent(value);
-                    //     files.push({ url, filename: url });
-                    //     break;
-                    // }
-                    case 'cameraPosition': {
-                        const pos = value.split(',').map(Number);
-                        if (pos.length === 3) {
-                            viewer.initialCameraPosition = new Vec3(pos);
-                        }
-                        break;
-                    }
-                    case 'cameraFocus': {
-                        const pos = value.split(',').map(Number);
-                        if (pos.length === 3) {
-                            viewer.initialCameraFocus = new Vec3(pos);
-                        }
-                        break;
-                    }
-                    case 'dummyWebGPU': {
-                        const dummy = new DummyWebGPU(viewer.app);
-                        break;
-                    }
-                    default: {
-                        if (observer.has(key)) {
-                            switch (typeof observer.get(key)) {
-                                case 'boolean':
-                                    observer.set(key, value.toLowerCase() === 'true');
-                                    break;
-                                case 'number':
-                                    observer.set(key, Number(value));
-                                    break;
-                                default:
-                                    observer.set(key, decodeURIComponent(value));
-                                    break;
+            // Force the container to have dimensions
+            canvasContainer.style.width = '100%';
+            canvasContainer.style.height = '100vh';
+            canvasContainer.style.display = 'block';
+
+            let canvas = document.getElementById('application-canvas') as HTMLCanvasElement;
+            if (!canvas) {
+                canvas = document.createElement('canvas');
+                canvas.id = 'application-canvas';
+                canvas.style.width = '100%';
+                canvas.style.height = '100%';
+                canvas.style.display = 'block';
+                canvasWrapper.appendChild(canvas);
+            }
+            
+            // Wait for canvas to be properly sized
+            const waitForCanvasSize = () => {
+                const rect = canvas.getBoundingClientRect();
+                
+                if (rect.width > 0 && rect.height > 0) {
+                    // Initialize materials and Basis
+                    try {
+                        initMaterials();
+                        
+                        basisInitialize({
+                            glueUrl: 'static/lib/basis/basis.wasm.js',
+                            wasmUrl: 'static/lib/basis/basis.wasm.wasm',
+                            fallbackUrl: 'static/lib/basis/basis.js',
+                            lazyInit: true
+                        });
+                        
+                        WasmModule.setConfig('DracoDecoderModule', {
+                            glueUrl: 'static/lib/draco/draco.wasm.js',
+                            wasmUrl: 'static/lib/draco/draco.wasm.wasm',
+                            fallbackUrl: 'static/lib/draco/draco.js'
+                        });
+                        
+                        // Create graphics device
+                        const absoluteUrl = (relative: string) => new URL(relative, document.baseURI).toString();
+                        
+                        createGraphicsDevice(canvas, {
+                            deviceTypes: url.searchParams.has('webgpu') || observer.get('enableWebGPU') ? ['webgpu'] : [],
+                            glslangUrl: absoluteUrl('static/lib/glslang/glslang.js'),
+                            twgslUrl: absoluteUrl('static/lib/twgsl/twgsl.js'),
+                            antialias: false,
+                            depth: false,
+                            stencil: false,
+                            xrCompatible: true,
+                            powerPreference: 'high-performance'
+                        }).then(async (device) => {
+                            try {
+                                observer.set('runtime.activeDeviceType', device.deviceType);
+                                console.log("Graphics device created successfully:", device.deviceType);
+                                
+                                // Create viewer instance
+                                const viewer = new Viewer(canvas, device, observer, skyboxUrls);
+                                
+                                // Make viewer available globally
+                                window.viewer = viewer;
+                                
+                                // Create required elements if they don't exist
+                                if (!document.querySelector('#panel-left')) {
+                                    const panelLeft = document.createElement('div');
+                                    panelLeft.id = 'panel-left';
+                                    panelLeft.classList.add('no-cta');
+                                    document.body.appendChild(panelLeft);
+                                }
+                                
+                                if (!document.querySelector('.load-button-panel')) {
+                                    const loadPanel = document.createElement('div');
+                                    loadPanel.className = 'load-button-panel hide';
+                                    document.body.appendChild(loadPanel);
+                                }
+                                
+                                // Load model if specified in localStorage
+                                const currentModelUrl = localStorage.getItem('currentModelUrl');
+                                const currentModelName = localStorage.getItem('currentModelName') || 'model.ply';
+                                
+                                if (currentModelUrl) {
+                                    try {
+                                        console.log("Loading model from URL:", currentModelUrl);
+                                        await viewer.loadFiles([{ url: currentModelUrl, filename: currentModelName }], true);
+                                    } catch (error) {
+                                        console.error('Error loading model:', error);
+                                        observer.set('ui.error', `Failed to load model: ${error}`);
+                                        setError(`Failed to load model: ${error instanceof Error ? error.message : String(error)}`);
+                                    }
+                                }
+                                
+                                // Handle PWA file handling
+                                if ('launchQueue' in window) {
+                                    window.launchQueue.setConsumer(async (launchParams: LaunchParams) => {
+                                        const pwaFiles: { url: string, filename: string }[] = [];
+                                        
+                                        for (const fileHandle of launchParams.files) {
+                                            const file = await fileHandle.getFile();
+                                            pwaFiles.push({ url: URL.createObjectURL(file), filename: file.name });
+                                        }
+                                        
+                                        if (pwaFiles.length > 0) {
+                                            viewer.loadFiles(pwaFiles, true);
+                                        }
+                                    });
+                                }
+                                
+                                // Handle URL parameters
+                                for (const [key, value] of url.searchParams) {
+                                    switch (key) {
+                                        case 'cameraPosition': {
+                                            const pos = value.split(',').map(Number);
+                                            if (pos.length === 3) {
+                                                viewer.initialCameraPosition = new Vec3(pos);
+                                            }
+                                            break;
+                                        }
+                                        case 'cameraFocus': {
+                                            const pos = value.split(',').map(Number);
+                                            if (pos.length === 3) {
+                                                viewer.initialCameraFocus = new Vec3(pos);
+                                            }
+                                            break;
+                                        }
+                                        case 'dummyWebGPU': {
+                                            new DummyWebGPU(viewer.app);
+                                            break;
+                                        }
+                                        default: {
+                                            if (observer.has(key)) {
+                                                switch (typeof observer.get(key)) {
+                                                    case 'boolean':
+                                                        observer.set(key, value.toLowerCase() === 'true');
+                                                        break;
+                                                    case 'number':
+                                                        observer.set(key, Number(value));
+                                                        break;
+                                                    default:
+                                                        observer.set(key, decodeURIComponent(value));
+                                                        break;
+                                                }
+                                            }
+                                            break;
+                                        }
+                                    }
+                                }
+                                
+                                setIsInitialized(true);
+                            } catch (err) {
+                                const errorMessage = err instanceof Error ? err.message : String(err);
+                                console.error('Error initializing viewer:', errorMessage);
+                                setError(`Error initializing viewer: ${errorMessage}`);
                             }
-                        }
-                        break;
+                        }).catch((err: Error) => {
+                            console.error('Error initializing graphics device:', err);
+                            setError(`Failed to initialize graphics device: ${err.message || String(err)}`);
+                        });
+                    } catch (err) {
+                        const errorMessage = err instanceof Error ? err.message : String(err);
+                        console.error('Error during initialization:', errorMessage);
+                        setError(`Initialization error: ${errorMessage}`);
                     }
+                } else {
+                    // If canvas is not sized yet, wait and try again
+                    console.log("Waiting for canvas size, current size:", rect.width, "x", rect.height);
+                    setTimeout(waitForCanvasSize, 100); // Use setTimeout instead of requestAnimationFrame
                 }
+            };
+
+            // Start waiting for canvas size
+            waitForCanvasSize();
+        } else {
+            setError("Could not find viewer container element");
+        }
+        
+        return () => {
+            // Cleanup when component unmounts
+            if (window.viewer) {
+                window.viewer = null;
             }
-
-            // PWA file loading is handled within the launchQueue consumer now
-
-        }).catch((err: Error) => { // Add type annotation for err
-            console.error('Error initializing graphics device or viewer:', err);
-            // Display error to the user if possible
-            const errorDiv = document.getElementById('app') || document.body;
-            errorDiv.innerHTML = `<div style='padding: 20px; color: red;'>Failed to initialize viewer: ${err.message || err}</div>`;
-        });
-    };
-
-    // Initialize React UI and pass the callback
-    initializeUI(observer, startViewerInitialization);
+        };
+    }, []);
+    
+    return (
+        <div id="viewer-container" style={{ width: '100%', height: '100vh', display: 'block' }}>
+            {!isInitialized && !error && (
+                <div className="loading-container">
+                    <div className="loading-spinner"></div>
+                    <span>Initializing viewer...</span>
+                </div>
+            )}
+            {error && (
+                <div className="error-container" style={{ padding: '20px', color: 'red' }}>
+                    {error}
+                </div>
+            )}
+        </div>
+    );
 };
 
-// start main
-main();
+// Main App component with routing
+const App = () => {
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        // Handle authentication state
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+            setIsAuthenticated(!!user);
+            setIsLoading(false);
+        });
+
+        // Log version info
+        console.log(`Model Viewer v${modelViewerVersion} | PCUI v${pcuiVersion} (${pcuiRevision}) | PlayCanvas Engine v${engineVersion} (${engineRevision})`);
+
+        return () => unsubscribe();
+    }, []);
+
+    if (isLoading) {
+        return (
+            <div className="loading-container">
+                <div className="loading-spinner"></div>
+                <span>Loading...</span>
+            </div>
+        );
+    }
+
+    return (
+        <HashRouter>
+            <Routes>
+                <Route 
+                    path="/login" 
+                    element={isAuthenticated ? <Navigate to="/dashboard" /> : <LoginPage />} 
+                />
+                <Route 
+                    path="/dashboard" 
+                    element={isAuthenticated ? <DashboardPage /> : <Navigate to="/login" />} 
+                />
+                <Route 
+                    path="/viewer" 
+                    element={isAuthenticated ? <ViewerComponent /> : <Navigate to="/login" />} 
+                />
+                <Route path="/" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} />} />
+            </Routes>
+        </HashRouter>
+    );
+};
+
+// Render the React application
+ReactDOM.render(
+    <React.StrictMode>
+        <App />
+    </React.StrictMode>,
+    document.getElementById('app')
+);
