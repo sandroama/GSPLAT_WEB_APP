@@ -180,8 +180,9 @@ const DashboardPage: React.FC = () => {
         }
 
         // Reset file input value so the same file can be selected again if needed
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        event.target!.value = ''; // Use non-null assertion or check target exists
+        if (event.target) {
+            event.target.value = ''; // Safer way to reset
+        }
     };
 
 
@@ -205,50 +206,107 @@ const DashboardPage: React.FC = () => {
 
     return (
         <div className="dashboard-page">
-            <div className="dashboard-header">
-                <h2>Model Dashboard</h2>
-                <div className="theme-controls">
-                    <button onClick={toggleTheme} className="theme-button">
-                        Switch to {currentTheme === 'light' ? 'Dark' : 'Light'} Theme
-                    </button>
-                    <button onClick={handleLogout} className="logout-button">Logout</button>
+            {/* NEW: Intro Section */}
+            <section className="intro">
+                <h2>Welcome to GSPLAT Web Viewer</h2>
+                <p>
+                    This tool allows you to upload, manage, and view 3D models created using{' '}
+                    <strong>Gaussian Splatting</strong> (.ply format). Gaussian Splatting is a
+                    modern rendering technique that represents scenes with millions of 3D Gaussians,
+                    enabling high-quality, real-time rendering of complex captures.
+                </p>
+                <p>
+                    Upload your scans, view them instantly in your browser, and manage your model library.
+                </p>
+            </section>
+
+            {/* NEW: Get Started Section */}
+            <section className="get-started">
+                <h3>Get Started</h3>
+                <div className="get-started-content">
+                    <div className="upload-instructions">
+                        <h4>Uploading Your Scans</h4>
+                        <p>
+                            Use the "Upload New Model" button below to add your <code>.ply</code> files.
+                        </p>
+                        <p>
+                            <strong>📱 Mobile Uploads:</strong> You can easily upload scans captured on your phone!
+                            Simply navigate to this page on your mobile browser, log in, and use the upload button
+                            to select the <code>.ply</code> file directly from your phone's storage or camera roll.
+                        </p>
+                    </div>
+                    {/* Optional: Add sign-in info if needed, though routing handles it */}
+                    {/* <div className="account-info">
+                        <h4>Account</h4>
+                        <p>You are currently logged in. Use the logout button in the header to sign out.</p>
+                    </div> */}
                 </div>
-            </div>
+            </section>
 
-            {/* Re-added the upload section */}
-            <div className="dashboard-section">
-                <h3>Upload New .ply Model</h3>
-                <input type="file" accept=".ply" onChange={handleDashboardUpload} />
-                {/* Consider adding a visual button styled around the input if desired */}
-            </div>
+            <header className="dashboard-header">
+                <h1>Model Dashboard</h1>
+                <div className="header-actions">
+                    <button onClick={toggleTheme} className="theme-button icon-button" title={`Switch to ${currentTheme === 'light' ? 'Dark' : 'Light'} Theme`}>
+                        {currentTheme === 'light' ? '🌙' : '☀️'} {/* Simple icons */}
+                    </button>
+                    <button onClick={handleLogout} className="logout-button" title="Logout">Logout</button>
+                </div>
+            </header>
 
-            <div className="dashboard-section">
-                <h3>Uploaded Models</h3>
+            <section className="dashboard-section upload-section">
+                <h3>Upload New Model</h3>
+                <label htmlFor="dashboard-upload-input" className="upload-button">
+                    Choose .ply File
+                </label>
                 <input
-                    type="search"
-                    placeholder='Search models by name...'
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
+                    id="dashboard-upload-input"
+                    type="file"
+                    accept=".ply"
+                    onChange={handleDashboardUpload}
+                    style={{ display: 'none' }} // Hide default input
                 />
+                {/* TODO: Add visual feedback for selected file name */}
+            </section>
+
+            <section className="dashboard-section models-section">
+                <div className="models-header">
+                    <h3>Uploaded Models</h3>
+                    <input
+                        className="search-input"
+                        type="search"
+                        placeholder='Search models...'
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                    />
+                </div>
                 {filteredModels.length === 0 ? (
                     <p className='no-models-message'>
                         {searchQuery ? 'No models match your search.' : 'No models uploaded yet.'}
                     </p>
                 ) : (
-                    <ul className='model-list'>
+                    <div className='model-grid'> {/* Changed from ul to div for grid layout */}
                         {filteredModels.map(model => (
-                            <li key={model.id} className='model-list-item'>
-                                <span className='model-name' onClick={() => handleModelSelect(model)}>
-                                    {model.fileName} {/* Display fileName */}
-                                </span>
-                                <button onClick={() => handleRemoveModel(model)} className='remove-model-button'>
-                                    Remove
-                                </button>
-                            </li>
+                            <div key={model.id} className='model-card'>
+                                <div className='model-card-content'>
+                                    <span className='model-name'>
+                                        {model.fileName}
+                                    </span>
+                                    {/* Add more details like upload date if available */}
+                                    {/* <span className='model-date'>{model.uploadedAt ? new Date(model.uploadedAt.seconds * 1000).toLocaleDateString() : 'N/A'}</span> */}
+                                </div>
+                                <div className='model-card-actions'>
+                                    <button onClick={() => handleModelSelect(model)} className='action-button view-button' title="View Model">
+                                        👁️ {/* View icon */}
+                                    </button>
+                                    <button onClick={() => handleRemoveModel(model)} className='action-button remove-button' title="Remove Model">
+                                        🗑️ {/* Remove icon */}
+                                    </button>
+                                </div>
+                            </div>
                         ))}
-                    </ul>
+                    </div>
                 )}
-            </div>
+            </section>
         </div>
     );
 };

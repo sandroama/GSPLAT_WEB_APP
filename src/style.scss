@@ -970,6 +970,88 @@ input {
     transition: background-color 0.3s, color 0.3s;
 }
 
+/* NEW: Intro Section Styles */
+.intro {
+    background-color: var(--section-bg-color, #fff);
+    border: 1px solid var(--border-color-light, #eee);
+    border-radius: 8px;
+    padding: 25px 30px;
+    margin-bottom: 30px;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.05);
+
+    h2 {
+        margin-top: 0;
+        margin-bottom: 15px;
+        color: var(--header-color, #333);
+        font-size: 1.6rem;
+        font-weight: 600;
+    }
+
+    p {
+        line-height: 1.6;
+        margin-bottom: 10px;
+        color: var(--text-muted-color, #555); // Slightly darker muted text
+    }
+
+    p:last-child {
+        margin-bottom: 0;
+    }
+
+    strong {
+        color: var(--text-color, #333); // Make strong text stand out more
+    }
+}
+
+
+/* NEW: Get Started Section Styles */
+.get-started {
+    background-color: var(--section-bg-color, #fff);
+    border: 1px solid var(--border-color-light, #eee);
+    border-radius: 8px;
+    padding: 20px 25px;
+    margin-bottom: 30px;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.05);
+
+    h3 {
+        margin-top: 0;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border-color, #eee);
+        color: var(--header-color, #333);
+        background-color: transparent; /* Override general h3 style */
+        font-size: 1.2rem; /* Slightly larger than section h3 */
+    }
+
+    .get-started-content {
+        display: flex; // Arrange items side-by-side if needed later
+        flex-direction: column; // Stack vertically for now
+        gap: 20px;
+    }
+
+    .upload-instructions {
+        h4 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: var(--text-color, #333);
+        }
+        p {
+            line-height: 1.6;
+            margin-bottom: 8px;
+            color: var(--text-muted-color, #555);
+        }
+        code {
+            background-color: rgba(0,0,0,0.05);
+            padding: 2px 5px;
+            border-radius: 4px;
+            font-family: monospace;
+            color: var(--text-color, #333);
+        }
+    }
+}
+
+
 .dashboard-header {
     display: flex;
     justify-content: space-between;
@@ -1101,6 +1183,201 @@ input {
     align-items: center;
 }
 
+/* --- Modern Dashboard Enhancements --- */
+
+.dashboard-header {
+    align-items: center; // Vertically align items
+
+    h1 { // Style the main title
+        margin: 0;
+        font-size: 1.8rem; // Slightly larger title
+        font-weight: 600;
+        color: var(--header-color, #333);
+    }
+}
+
+.header-actions {
+    display: flex;
+    gap: 10px; // Space between buttons
+    align-items: center;
+}
+
+.header-actions .theme-button {
+    background: none;
+    border: 1px solid var(--border-color, #ccc);
+    color: var(--text-color, #333);
+    padding: 6px 10px;
+    border-radius: 50%; // Make it round
+    width: 36px; // Fixed size
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem; // Adjust icon size
+    line-height: 1;
+}
+.header-actions .theme-button:hover {
+    background-color: rgba(0, 0, 0, 0.05); // Subtle hover
+}
+
+.header-actions .logout-button {
+    padding: 8px 18px; // Adjust padding
+    font-weight: 500;
+}
+
+
+.upload-section {
+    text-align: center; // Center the button
+}
+
+.upload-button {
+    display: inline-block; // Allow padding and centering
+    padding: 12px 25px;
+    background-color: var(--button-bg-color, #007bff);
+    color: var(--button-text-color, white);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 500;
+    transition: background-color 0.3s;
+    margin-top: 10px;
+}
+
+.upload-button:hover {
+    background-color: var(--button-hover-bg-color, #0056b3);
+}
+
+.models-section .models-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px; // Space below header
+    flex-wrap: wrap; // Allow wrapping on smaller screens
+    gap: 15px; // Space between title and search
+}
+
+.models-section .models-header h3 {
+    margin: 0; // Remove default margins
+    border: none; // Remove border from h3 if previously applied
+    padding: 0;
+}
+
+.search-input { // Renamed from .dashboard-section input[type="search"]
+    padding: 10px 15px;
+    border: 1px solid var(--border-color, #ccc);
+    border-radius: 6px;
+    font-size: 0.95rem;
+    width: 100%; // Default to full width
+    max-width: 350px; // Limit width
+    box-sizing: border-box;
+    background-color: var(--input-bg-color, #fff);
+    color: var(--input-text-color, #333);
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: var(--button-bg-color, #0d6efd);
+    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15); // Softer focus ring
+}
+
+
+.model-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); // Responsive grid
+    gap: 20px; // Space between cards
+}
+
+.model-card {
+    background-color: var(--section-bg-color, #fff);
+    border: 1px solid var(--border-color-light, #eee);
+    border-radius: 8px;
+    padding: 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: box-shadow 0.3s ease, transform 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.model-card:hover {
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    transform: translateY(-3px);
+}
+
+.model-card-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px; // Space between name and potential date
+    overflow: hidden; // Prevent long names from breaking layout
+    margin-right: 15px; // Space between content and actions
+}
+
+.model-card .model-name {
+    font-weight: 500;
+    color: var(--text-color, #333);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: default; // Remove cursor from name itself
+    text-decoration: none; // Remove underline
+}
+.model-card .model-name:hover {
+     color: var(--text-color, #333); // No hover color change on name
+     text-decoration: none;
+}
+
+
+.model-card-actions {
+    display: flex;
+    gap: 8px; // Space between action buttons
+    flex-shrink: 0; // Prevent actions from shrinking
+}
+
+.action-button {
+    background: none;
+    border: 1px solid transparent; // Keep layout consistent
+    color: var(--text-muted-color, #6c757d);
+    padding: 6px;
+    border-radius: 50%; // Round buttons
+    cursor: pointer;
+    font-size: 1.1rem; // Icon size
+    line-height: 1;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.action-button:hover {
+    background-color: rgba(0, 0, 0, 0.05); // Subtle background on hover
+    color: var(--text-color, #333);
+}
+
+.action-button.view-button:hover {
+    color: var(--link-color, #007bff);
+}
+
+.action-button.remove-button:hover {
+    color: var(--button-danger-bg-color, #dc3545);
+}
+
+/* Remove old list styles if they conflict */
+.model-list, .model-list-item {
+    /* Reset or remove styles if needed, now using .model-grid and .model-card */
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    border: none;
+    display: block; /* Override flex if needed */
+}
+.remove-model-button {
+    /* Reset or remove styles if needed, now using .action-button.remove-button */
+     display: none; /* Hide old button */
+}
 /* --- Theme Variables --- */
 body.theme-light {
     --bg-color: #f8f9fa;
