@@ -1,0 +1,20 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Match any path starting with /users/{userId}/
+    match /users/{userId}/{path=**} {
+      // Allow read and write (create, update, delete) operations
+      // only if the requesting user is authenticated and their UID matches the {userId} segment.
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Optionally, deny access to listing the top-level 'users' directory if needed.
+    // match /users {
+    //   allow list: if false;
+    // }
+
+    // Deny all other access by default (implicitly handled if no other rules match).
+  }
+}

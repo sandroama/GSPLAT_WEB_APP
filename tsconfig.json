@@ -1,0 +1,23 @@
+{
+    "compilerOptions": {
+        "allowJs": true,
+        "allowSyntheticDefaultImports" : true,
+        "baseUrl": ".",
+        "esModuleInterop" : true,
+        "inlineSources": true,
+        "jsx": "react",
+        "lib": [
+            "es2019",
+            "dom",
+            "dom.iterable",
+        ],
+        "moduleResolution": "node",
+        "noEmit": true,
+        "noImplicitAny": true,
+        "resolveJsonModule": true,
+        "sourceMap": true,
+        "target": "es2022",
+    },
+    "include": ["**/*.ts", "**/*.tsx"],
+    "exclude": ["node_modules", "**/*.js", "dist"]
+}
