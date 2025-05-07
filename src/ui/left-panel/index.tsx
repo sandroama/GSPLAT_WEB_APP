@@ -156,12 +156,12 @@ class LeftPanel extends React.Component <{ observerData: ObserverData, setProper
         document.getElementById('panel-toggle').addEventListener('click', () => {
             toggleCollapsed();
         });
-        document.getElementById('title').addEventListener('click', () => {
-            toggleCollapsed();
-        });
-        // we require this setTimeout because panel isn't yet created and so fails
-        // otherwise.
-        setTimeout(() => toggleCollapsed());
+        
+        // Start with panel expanded for better user experience
+        const leftPanel = document.getElementById('panel-left');
+        if (leftPanel && leftPanel.classList.contains('collapsed')) {
+            leftPanel.classList.remove('collapsed');
+        }
     }
 
     componentDidUpdate(prevProps: Readonly<{ observerData: ObserverData; setProperty: SetProperty; }>): void {

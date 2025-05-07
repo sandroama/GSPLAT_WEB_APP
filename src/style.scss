@@ -544,7 +544,7 @@ body.theme-dark {
   display: flex;
   overflow-y: hidden;
   user-select: none;
-  transition: all 0.3s ease;
+  transition: width 0.3s ease;
   position: relative;
   z-index: 10;
 }
@@ -565,8 +565,45 @@ body.theme-dark {
   overflow-y: hidden !important;
 }
 
+#panel-toggle {
+  position: absolute;
+  right: -16px;
+  top: 20px;
+  width: 32px;
+  height: 32px;
+  background-color: var(--primary-color);
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  z-index: 100;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: transform 0.3s ease, background-color 0.2s ease;
+}
+
+#panel-toggle::before {
+  content: "◀";
+  color: white;
+  font-size: 14px;
+  transition: transform 0.3s ease;
+}
+
 #panel-left.collapsed #panel-toggle::before {
-  transform: translateY(-50%) translateX(-50%) rotateZ(90deg);
+  transform: rotate(180deg);
+}
+
+#panel-toggle:hover {
+  background-color: var(--primary-hover-color, #3a8eff);
+  transform: scale(1.1);
+}
+
+#panel-toggle:active {
+  transform: scale(0.95);
+}
+
+#panel-toggle > img {
+  display: none;
 }
 
 /* Loading Spinner */
@@ -1043,6 +1080,19 @@ body.theme-dark {
 @media only screen and (max-width: 950px) {
   #panel-left.collapsed {
     overflow: visible !important;
+    position: absolute;
+  }
+  
+  #panel-toggle {
+    top: 10px;
+    right: -16px;
+  }
+  
+  #panel-left:not(.collapsed) {
+    position: absolute;
+    width: 85% !important;
+    max-width: 310px;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.2);
   }
 
   #popup > #floating-buttons-parent {
@@ -1117,14 +1167,10 @@ body.theme-dark {
   display: none;
 }
 
-#panel-toggle > img {
-  z-index: 9999;
-  width: 42px;
-  position: fixed;
-}
-
-#panel-left:not(.collapsed)> #panel-toggle > img {
-  display: none;
+#panel-left.collapsed #scene-container, 
+#panel-left.collapsed .header,
+#panel-left.collapsed #scene-scrolly-bits {
+  display: none !important;
 }
 
 #view-panel > .pcui-label {
@@ -1200,10 +1246,6 @@ body.theme-dark {
   margin: 0;
   left: calc(50% - 15px);
   top: calc(50% - 15px);
-}
-
-#panel-left.collapsed #scene-container, #panel-left.collapsed .header {
-  display: none !important;
 }
 
 .font-thin {

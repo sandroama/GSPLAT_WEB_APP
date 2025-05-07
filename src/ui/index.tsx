@@ -67,9 +67,7 @@ class App extends React.Component<AppProps> {
                         <div>{`MODEL VIEWER v${appVersion}`}</div>
                     </div>
                 </div>
-                <div id="panel-toggle">
-                    <img src={'static/Gsplat_main.png'}/>
-                </div>
+                <div id="panel-toggle" title="Toggle sidebar"></div>
                 <LeftPanel observerData={this.state} setProperty={this._setStateProperty} />
             </Container>
             <div id='canvas-wrapper'>
