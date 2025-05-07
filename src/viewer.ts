@@ -1554,6 +1554,14 @@ class Viewer {
     update(deltaTime: number) {
         // update the orbit camera
         if (!this.xrMode?.active) {
+            // Calculate a very slow movement speed for keyboard controls (W-A-S-D)
+            // @ts-ignore _zoomDist is currently flagged as private
+            const speed = this.cameraControls._zoomDist / this.cameraControls.sceneSize;
+            // Use an extremely low speed factor for precise control in PLY models
+            const speedFactor = 0.05; // Reduced from 0.1 to 0.01 (10x slower)
+            this.cameraControls.moveSpeed = speed * speedFactor;
+            this.cameraControls.moveFastSpeed = speed * speedFactor * 1.5; // Only slightly faster with shift
+            this.cameraControls.moveSlowSpeed = speed * speedFactor * 0.2;
             this.cameraControls.update(deltaTime);
         }
 
